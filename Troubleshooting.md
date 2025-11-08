@@ -554,7 +554,7 @@ make test-all
 # Aumenta health check retries
 services:
   api:
-    image: ghcr.io/${{ toLower(github.repository) }}:latest
+    image: ghcr.io/${{ github.repository }}:latest
     options: >-
       --health-cmd "wget --spider http://localhost:8080/health"
       --health-interval 10s
