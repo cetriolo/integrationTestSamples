@@ -66,9 +66,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ -f reports/hurl/results.json ]; then
-            # The --json output is an array, not an object with a 'results' key.
-            # We also need to calculate total duration.
-            jq -r '
+            # Use --slurp to read the stream of JSON objects into an array
+            jq --slurp -r '
               "**Total Tests:** \(length)",
               "**Passed:** ✅ \(map(select(.success == true)) | length)",
               "**Failed:** ❌ \(map(select(.success == false)) | length)",
@@ -147,7 +146,8 @@ jobs:
         if: always()
         run: |
           if [ -f reports/hurl/results.json ]; then
-            FAILURES=$(jq '[.[] | select(.success == false)] | length' reports/hurl/results.json)
+            # Use --slurp to read the stream of JSON objects into an array
+            FAILURES=$(jq --slurp '[.[] | select(.success == false)] | length' reports/hurl/results.json)
             if [ "$FAILURES" -gt 0 ]; then
               echo "❌ $FAILURES test(s) failed"
               exit 1
