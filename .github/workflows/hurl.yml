@@ -66,23 +66,23 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ -f reports/hurl/results.json ]; then
-            cat reports/hurl/results.json | jq -r '
-              def format_duration: . / 1000000 | tostring + "ms";
-
-              "**Total Tests:** \(.results | length)",
-              "**Passed:** ✅ \(.results | map(select(.success == true)) | length)",
-              "**Failed:** ❌ \(.results | map(select(.success == false)) | length)",
-              "**Duration:** \(.duration | format_duration)",
+            # The --json output is an array, not an object with a 'results' key.
+            # We also need to calculate total duration.
+            jq -r '
+              "**Total Tests:** \(length)",
+              "**Passed:** ✅ \(map(select(.success == true)) | length)",
+              "**Failed:** ❌ \(map(select(.success == false)) | length)",
+              "**Duration:** \([.[] | .time_in_ms] | add)ms",
               "",
               "#### Failed Tests",
-              (.results | map(select(.success == false)) |
+              (map(select(.success == false)) |
                 if length > 0 then
                   map("- ❌ \(.filename)") | join("\n")
                 else
                   "_No failures_ ✨"
                 end
               )
-            ' >> $GITHUB_STEP_SUMMARY
+            ' reports/hurl/results.json >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Upload Hurl reports
@@ -113,14 +113,14 @@ jobs:
 
             const results = JSON.parse(fs.readFileSync('reports/hurl/results.json', 'utf8'));
 
-            const passed = results.results.filter(r => r.success).length;
-            const failed = results.results.filter(r => !r.success).length;
-            const total = results.results.length;
+            const passed = results.filter(r => r.success).length;
+            const failed = results.filter(r => !r.success).length;
+            const total = results.length;
 
             let failureDetails = '';
             if (failed > 0) {
               failureDetails = '\n\n#### Failed Tests:\n' +
-                results.results
+                results
                   .filter(r => !r.success)
                   .map(r => `- ❌ ${r.filename}`)
                   .join('\n');
@@ -132,7 +132,7 @@ jobs:
             - **Total:** ${total}
             - **Passed:** ✅ ${passed}
             - **Failed:** ❌ ${failed}
-            - **Success Rate:** ${((passed/total)*100).toFixed(1)}%
+            - **Success Rate:** ${total > 0 ? ((passed/total)*100).toFixed(1) : "100"}%
             ${failureDetails}
             `;
 
@@ -147,7 +147,7 @@ jobs:
         if: always()
         run: |
           if [ -f reports/hurl/results.json ]; then
-            FAILURES=$(jq '[.results[] | select(.success == false)] | length' reports/hurl/results.json)
+            FAILURES=$(jq '[.[] | select(.success == false)] | length' reports/hurl/results.json)
             if [ "$FAILURES" -gt 0 ]; then
               echo "❌ $FAILURES test(s) failed"
               exit 1
