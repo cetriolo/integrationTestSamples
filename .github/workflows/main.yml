@@ -22,6 +22,7 @@ jobs:
 
     outputs:
       image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
 
     steps:
       - name: Checkout code
@@ -50,6 +51,7 @@ jobs:
             type=sha
 
       - name: Build and push Docker image
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -130,7 +132,7 @@ jobs:
 
     services:
       api:
-        image: ${{ needs.build.outputs.image-tag }}
+        image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
         ports:
           - 8080:8080
 
@@ -175,7 +177,7 @@ jobs:
 
     services:
       api:
-        image: ${{ needs.build.outputs.image-tag }}
+        image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
         ports:
           - 8080:8080
 
@@ -221,7 +223,7 @@ jobs:
 
     services:
       api:
-        image: ${{ needs.build.outputs.image-tag }}
+        image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
         ports:
           - 8080:8080
 
@@ -273,7 +275,7 @@ jobs:
 
     services:
       api:
-        image: ${{ needs.build.outputs.image-tag }}
+        image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
         ports:
           - 8080:8080
 
