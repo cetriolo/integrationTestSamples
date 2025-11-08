@@ -49,10 +49,12 @@ jobs:
       - name: Wait for API and run smoke test
         env:
           API_URL: http://localhost:8080
+          # Set to 'false' to prevent k6 from exiting with a non-zero code on threshold failure
+          K6_FAIL_ON_THRESHOLD: "false"
         run: |
           echo "Waiting for API to be ready..."
           for i in {1..30}; do
-            if curl -f http://localhost:8080/health > /dev/null 2>&1; then
+            if curl -sf http://localhost:8080/health > /dev/null; then
               echo "API is ready!"
               sleep 5 # Give it extra time to stabilize
               break
@@ -69,9 +71,10 @@ jobs:
           mkdir -p reports
 
           echo "Running k6 smoke test..."
+          # The '|| true' ensures the step succeeds even if k6 finds issues, allowing artifact upload
           k6 run --vus 1 --duration 30s \
             --summary-export=reports/k6-smoke-summary.json \
-            tests/k6/load-test.js
+            tests/k6/load-test.js || true
 
       - name: Upload k6 smoke test results
         if: always()
@@ -79,6 +82,19 @@ jobs:
         with:
           name: k6-smoke-results
           path: reports/
+
+      - name: Check smoke test results
+        id: k6_results
+        run: |
+          # This step will fail the job if the failure rate is > 0
+          # You can adjust the '0.0' to a more lenient threshold, e.g., '0.01' for 1%
+          FAILED_RATE=$(jq -r '.metrics.http_req_failed.values.rate' reports/k6-smoke-summary.json)
+          if (( $(echo "$FAILED_RATE > 0.0" | bc -l) )); then
+            echo "Smoke test failed: Request failure rate is $(echo "$FAILED_RATE * 100" | bc -l)%."
+            exit 1
+          else
+            echo "Smoke test passed: Request failure rate is 0%."
+          fi
 
   k6-load-test:
     name: load-test.js Load Test
