@@ -41,7 +41,6 @@ tests/playwright/node_modules/
 tests/playwright/playwright-report/
 tests/playwright/test-results/
 tests/playwright/.playwright/
-tests/playwright/package-lock.json
 
 # Docker
 *.pid
