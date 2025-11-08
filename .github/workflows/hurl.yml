@@ -83,14 +83,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: api-test.hurl-reports
-          path: reports/api-test.hurl/
+          name: hurl-reports
+          path: reports/hurl/
 
       - name: Publish test results
         if: always()
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: reports/api-test.hurl/junit.xml
+          files: reports/hurl/junit.xml
           check_name: Hurl Test Results
 
       - name: Comment PR with results
