@@ -19,9 +19,6 @@ on:
 
 jobs:
   k6-smoke-test:
-
-
-
     name: load-test.js Smoke Test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || github.event.inputs.test_type == 'smoke'
@@ -38,13 +35,26 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Wait for API
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Wait for API and run smoke test
+        env:
+          API_URL: http://localhost:8080
         run: |
           echo "Waiting for API to be ready..."
           for i in {1..30}; do
             if curl -f http://localhost:8080/health > /dev/null 2>&1; then
               echo "API is ready!"
-              sleep 5  # Give it extra time to stabilize
+              sleep 5 # Give it extra time to stabilize
               break
             fi
             if [ $i -eq 30 ]; then
@@ -55,45 +65,19 @@ jobs:
             sleep 2
           done
 
-      - name: Verify API is responding
-        run: |
-          curl -v http://localhost:8080/health
-          curl -v http://localhost:8080/api/users
+          echo "Creating reports directory..."
+          mkdir -p reports
 
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup load-test.js
-        run: |
-          sudo gpg -k
-          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
-          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-          sudo apt-get update
-          sudo apt-get install k6
-
-      - name: Wait for API
-        run: |
-          for i in {1..30}; do
-            if curl -f http://localhost:8080/health > /dev/null 2>&1; then
-              echo "API is ready!"
-              break
-            fi
-            sleep 2
-          done
-
-      - name: Run load-test.js smoke test
-        env:
-          API_URL: http://localhost:8080
-        run: |
+          echo "Running k6 smoke test..."
           k6 run --vus 1 --duration 30s \
             --summary-export=reports/k6-smoke-summary.json \
             tests/k6/load-test.js
 
-      - name: Upload load-test.js results
+      - name: Upload k6 smoke test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: load-test.js-smoke-results
+          name: k6-smoke-results
           path: reports/
 
   k6-load-test:
@@ -110,7 +94,7 @@ jobs:
           echo "Deploying to test environment..."
           # Add your deployment logic here
 
-      - name: Setup load-test.js
+      - name: Setup k6
         run: |
           sudo gpg -k
           sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
@@ -118,10 +102,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install k6
 
-      - name: Run load-test.js load test
+      - name: Run k6 load test
         env:
           API_URL: ${{ secrets.TEST_ENV_URL }}
         run: |
+          mkdir -p reports
           k6 run --out json=reports/k6-load-results.json \
             --summary-export=reports/k6-load-summary.json \
             tests/k6/load-test.js
@@ -139,11 +124,11 @@ jobs:
             "**P99 Duration:** \(.metrics.http_req_duration.values["p(99)"])ms"
           ' >> $GITHUB_STEP_SUMMARY
 
-      - name: Upload load-test.js results
+      - name: Upload k6 load test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: load-test.js-load-results
+          name: k6-load-results
           path: reports/
 
       - name: Check thresholds
@@ -167,7 +152,7 @@ jobs:
         run: |
           echo "Deploying to test environment..."
 
-      - name: Setup load-test.js
+      - name: Setup k6
         run: |
           sudo gpg -k
           sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
@@ -175,10 +160,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install k6
 
-      - name: Run load-test.js stress test
+      - name: Run k6 stress test
         env:
           API_URL: ${{ secrets.TEST_ENV_URL }}
         run: |
+          mkdir -p reports
           k6 run --out json=reports/k6-stress-results.json \
             --summary-export=reports/k6-stress-summary.json \
             --config tests/k6/stress-config.json \
@@ -188,7 +174,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: load-test.js-stress-results
+          name: k6-stress-results
           path: reports/
 
       - name: Analyze breaking point
